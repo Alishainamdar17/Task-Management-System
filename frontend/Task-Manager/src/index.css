@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+
+@import "tailwindcss";
+
+
+:root {
+  --font-display: 'Poppins', sans-serif;
+  --breakpoint-3xl: 1920px;
+  --color-primary: #1368EC;
+}
+
+@layer base {
+  HTML{
+    font-family: var(--font-display);
+  }
+  body{
+    background-color: #fcfbfcf9;
+    overflow-x: hidden;
+  }
+}
+
+.input-box{
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: #000;
+  background-color: rgba(241, 245, 249, 0.5);
+  border-radius: 0.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid #e2e8f0;
+  outline: none;
+}
+
+.card{
+  background-color: #fff;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px 0 rgba(156, 163, 175, 0.1);
+  border: 1px solid rgba(229, 231, 235, 0.5);
+}
+
+.card-btn {
+  @apply flex items-center gap-2 px-3 py-1.5 rounded-md 
+         text-sm font-medium text-blue-600 border-gray-200/50 
+         hover:bg-blue-50 transition;
+}
+
+.form-card {
+  @apply bg-white p-6 rounded-lg shadow-md shadow-gray-100 border-gray-200/50; 
+}
+
+.font-input{
+  @apply w-full text-sm text-sm text-black outline-none bg-white border border-slate-100 px-2.5 py-3 rounded-md mt-2 placeholder:text-gray-500;
+}

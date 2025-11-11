@@ -1,0 +1,18 @@
+{
+  "ignore": [
+    "wa-auth/**",
+    "uploads/**",
+    "node_modules/**",
+    "package-lock.json"
+  ],
+  "watch": [
+    "*.js",
+    "controllers",
+    "routes",
+    "utils",
+    "config",
+    "cron",
+    "models"
+  ],
+  "ext": "js,json"
+}

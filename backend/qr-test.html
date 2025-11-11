@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<body>
+<h3>Scan this QR to connect WhatsApp</h3>
+<img id="waQR" width="280" height="280" />
+<p id="status"></p>
+<script>
+async function pollQR(){
+  try {
+    const r = await fetch('http://localhost:8000/api/wa/qr');
+    if (r.status === 204) {
+      document.getElementById('status').textContent = 'Already connected ✅';
+      return;
+    }
+    const { qrText } = await r.json();
+    document.getElementById('waQR').src =
+      'https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=' + encodeURIComponent(qrText);
+    document.getElementById('status').textContent = 'QR ready — open WhatsApp > Linked devices > Link a device';
+  } catch (e) {
+    document.getElementById('status').textContent = 'Waiting for QR...';
+  }
+}
+setInterval(pollQR, 2000);
+pollQR();
+</script>
+</body>
+</html>

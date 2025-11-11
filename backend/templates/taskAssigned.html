@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>New Task Assigned</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; line-height: 1.5; color: #111; }
+      .wrap { max-width: 680px; margin: 0 auto; padding: 24px; border: 1px solid #eee; border-radius: 10px; }
+      h2 { margin: 0 0 12px; }
+      .meta { font-size: 14px; color: #555; margin-bottom: 16px; }
+      .kv { border: 1px solid #eee; border-radius: 8px; padding: 12px; margin: 14px 0; }
+      .kv .row { display: flex; gap: 8px; margin: 6px 0; }
+      .kv .key { width: 140px; color: #666; }
+      .section { margin: 18px 0; }
+      .section h3 { margin: 0 0 8px; font-size: 16px; }
+      .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid #ddd; font-size: 12px; margin: 2px 6px 2px 0; }
+      ul { margin: 6px 0 0 18px; padding: 0; }
+      a { color: #0b62ff; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h2>New Task Assigned</h2>
+      <div class="meta">Hello {{name}}, a new task was assigned to you in <strong>{{project}}</strong>.</div>
+
+      <div class="kv">
+        <div class="row"><div class="key">Title</div><div class="val"><strong>{{title}}</strong></div></div>
+        <div class="row"><div class="key">Subtitle</div><div class="val">{{subtitle}}</div></div>
+        <div class="row"><div class="key">Description</div><div class="val">{{description}}</div></div>
+        <div class="row"><div class="key">Priority</div><div class="val"><span class="pill">{{priority}}</span></div></div>
+        <div class="row"><div class="key">Status</div><div class="val"><span class="pill">{{status}}</span></div></div>
+        <div class="row"><div class="key">Due date</div><div class="val">{{dueDate}}</div></div>
+        <div class="row"><div class="key">Project</div><div class="val">{{project}}</div></div>
+      </div>
+
+      {{assigneesSection}}
+      {{checklistSection}}
+      {{subtasksSection}}
+      {{attachmentsSection}}
+      {{dependenciesSection}}
+
+      <div class="section" style="margin-top:24px">
+        <div class="meta">If you have any questions, reply to this email.</div>
+        <div>Regards,<br/>Task Manager</div>
+      </div>
+    </div>
+  </body>
+</html>
