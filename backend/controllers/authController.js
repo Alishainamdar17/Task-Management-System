@@ -104,19 +104,60 @@ const registerUser = async (req, res) => {
 /* ---------------------------------------------------------
    🔹 Login
    POST /api/auth/login
+
+   ✅ Ab ye support karega:
+   - phone + password
+   - email + password
+   - identifier (email ya phone) + password
 --------------------------------------------------------- */
 const loginUser = async (req, res) => {
   try {
-    let { email, password } = req.body;
+    let { email, phone, identifier, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Please provide email and password' });
+    // password to chahiye hi
+    if (!password) {
+      return res.status(400).json({ message: 'Please provide password' });
     }
 
-    email = String(email).trim().toLowerCase();
+    let user = null;
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+    // 1️⃣ Direct phone field se login
+    if (phone) {
+      const normalized = normalizePhone(phone);
+      if (!normalized) {
+        return res.status(400).json({ message: 'Invalid phone number' });
+      }
+      user = await User.findOne({ phone: normalized });
+    }
+
+    // 2️⃣ Agar phone nahi diya, to "identifier" ka use karo
+    if (!user && identifier) {
+      identifier = String(identifier).trim();
+
+      // Agar identifier me '@' hai -> email maano
+      if (identifier.includes('@')) {
+        const em = identifier.toLowerCase();
+        user = await User.findOne({ email: em });
+      } else {
+        // warna phone maano
+        const normalized = normalizePhone(identifier);
+        if (!normalized) {
+          return res.status(400).json({ message: 'Invalid phone number' });
+        }
+        user = await User.findOne({ phone: normalized });
+      }
+    }
+
+    // 3️⃣ Backward compatibility: purana frontend email bhej raha ho to
+    if (!user && email) {
+      email = String(email).trim().toLowerCase();
+      user = await User.findOne({ email });
+    }
+
+    // Agar abhi bhi user nahi mila
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
 
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(401).json({ message: 'Invalid credentials' });
