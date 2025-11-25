@@ -16,7 +16,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │               taskController.createTask()                       │
 │                                                                 │
-│  ✅ Task created in MongoDB                                   │
+│  ✅ Task created in MongoDB                                    │
 │  ✅ Task ID: 607f1f77bcf86cd799439011                          │
 └────────────────────────┬────────────────────────────────────────┘
                          │
@@ -48,7 +48,7 @@
 │ ② Connect to device      │    │ ② Call Meta/FB API      │
 │ ③ Send via WhatsApp      │    │ ③ Send via WhatsApp     │
 │                          │    │                          │
-│ ✅ Message sent          │    │ ✅ Message sent          │
+│ ✅ Message sent          │   │ ✅ Message sent          │
 └────────┬─────────────────┘    └────────┬──────────────────┘
          │                               │
          └───────────────┬───────────────┘

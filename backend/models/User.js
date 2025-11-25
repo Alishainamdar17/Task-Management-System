@@ -17,6 +17,7 @@ const UserSchema = new mongoose.Schema(
     },
     department: { type: String, default: "Other" }
   },
+
   { timestamps: true }
 );
 

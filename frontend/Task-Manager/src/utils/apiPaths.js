@@ -8,6 +8,7 @@ export const API_PATHS = {
     LOGIN: "/api/auth/login",
     GET_PROFILE: "/api/auth/profile",
   },
+  
 
   USERS: {
     GET_ALL_USERS: "/api/users",

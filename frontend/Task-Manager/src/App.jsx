@@ -21,14 +21,10 @@ import { Toaster } from "react-hot-toast";
 import Workspaces from "./pages/Workspace/Workspaces";
 import WorkspaceDetails from "./pages/Workspace/WorkspaceDetails";
 
-// Correct import path & filename (no trailing dot)
 import ProjectDetails from "./pages/Project/ProjectDetails";
 import CreateProject from "./pages/Project/CreateProject";
 
-/**
- * Root route that decides redirect based on auth/role.
- * Using function declaration so it's available before usage.
- */
+/* Redirect logic based on user role */
 function Root() {
   const { user, loading } = useContext(UserContext);
 
@@ -42,60 +38,64 @@ function Root() {
 
   if (!user) return <Navigate to="/login" replace />;
 
-  if (user.role === "admin") return <Navigate to="/admin/dashboard" replace />;
-  return <Navigate to="/user/dashboard" replace />;
+  return user.role === "admin"
+    ? <Navigate to="/admin/dashboard" replace />
+    : <Navigate to="/user/dashboard" replace />;
 }
 
 const App = () => {
   return (
     <UserProvider>
-      <div>
-        <Router>
-          <Routes>
-            {/* Public */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<SignUp />} />
+      <Router>
+        <Routes>
 
-            {/* Admin Routes (protected) */}
-            <Route element={<PrivateRoute allowedRoles={["admin"]} />}>
-              <Route path="/admin/dashboard" element={<Dashboard />} />
-              <Route path="/admin/tasks" element={<ManageTasks />} />
-              <Route path="/admin/create-task" element={<CreateTask />} />
-              <Route path="/admin/users" element={<ManageUsers />} />
+          {/* PUBLIC ROUTES */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<SignUp />} />
 
-              {/* Admin workspaces & project management */}
-              <Route path="/admin/workspaces" element={<Workspaces />} />
-              <Route path="/admin/workspaces/:workspaceId" element={<WorkspaceDetails />} />
-              <Route path="/admin/workspaces/:workspaceId/create-project" element={<CreateProject />} />
-              <Route path="/admin/workspaces/:workspaceId/projects/:projectId" element={<ProjectDetails />} />
-            </Route>
+          {/* ===========================
+             ADMIN ROUTES
+          ============================ */}
+          <Route element={<PrivateRoute allowedRoles={["admin"]} />}>
+            <Route path="/admin/dashboard" element={<Dashboard />} />
+            <Route path="/admin/tasks" element={<ManageTasks />} />
+            <Route path="/admin/create-task" element={<CreateTask />} />
+            <Route path="/admin/users" element={<ManageUsers />} />
 
-            {/* User / Member Routes (protected) */}
-            <Route element={<PrivateRoute allowedRoles={["user", "member"]} />}>
-              <Route path="/user/dashboard" element={<Userdashboard />} />
-              <Route path="/user/tasks" element={<MyTasks />} />
-              <Route path="/user/task-details/:id" element={<ViewTaskDetails />} />
+            {/* Admin workspace/project routes */}
+            <Route path="/admin/workspaces" element={<Workspaces />} />
+            <Route path="/admin/workspaces/:workspaceId" element={<WorkspaceDetails />} />
+            <Route path="/admin/workspaces/:workspaceId/create-project" element={<CreateProject />} />
+            <Route path="/admin/workspaces/:workspaceId/projects/:projectId" element={<ProjectDetails />} />
+          </Route>
 
-              {/* Public-to-authenticated workspace/project routes for members */}
-              <Route path="/workspaces" element={<Workspaces />} />
-              <Route path="/workspaces/:id" element={<WorkspaceDetails />} />
-              <Route path="/workspaces/:id/projects/:projectId" element={<ProjectDetails />} />
-            </Route>
+          {/* ===========================
+              USER ROUTES
+          ============================ */}
+          <Route element={<PrivateRoute allowedRoles={["user", "member"]} />}>
+            <Route path="/user/dashboard" element={<Userdashboard />} />
+            <Route path="/user/tasks" element={<MyTasks />} />
+            <Route path="/user/task-details/:id" element={<ViewTaskDetails />} />
 
-            {/* Root redirect that decides based on user role */}
-            <Route path="/" element={<Root />} />
+            {/* ⭐ User task create route (same CreateTask component) */}
+            <Route path="/user/create-task" element={<CreateTask />} />
 
-            {/* Catch-all -> redirect to root */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Router>
-      </div>
+            {/* User access to workspaces & projects */}
+            <Route path="/workspaces" element={<Workspaces />} />
+            <Route path="/workspaces/:workspaceId" element={<WorkspaceDetails />} />
+            <Route path="/workspaces/:workspaceId/projects/:projectId" element={<ProjectDetails />} />
+          </Route>
 
-      <Toaster
-        toastOptions={{
-          style: { fontSize: "13px" },
-        }}
-      />
+          {/* ROOT / REDIRECT */}
+          <Route path="/" element={<Root />} />
+
+          {/* FALLBACK */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+
+        </Routes>
+      </Router>
+
+      <Toaster toastOptions={{ style: { fontSize: "13px" } }} />
     </UserProvider>
   );
 };

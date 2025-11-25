@@ -1,11 +1,11 @@
 // src/pages/Project/ProjectDetails.jsx
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useContext } from "react";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import axiosInstance from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
 import TaskCard from "../../components/Task/TaskCard";
 import toast from "react-hot-toast";
-
+import { UserContext } from "../../context/userContext";
 
 const normId = (v) => (v === undefined || v === null ? "" : String(v));
 
@@ -16,7 +16,8 @@ const normId = (v) => (v === undefined || v === null ? "" : String(v));
  * - OTHERWISE To Do (no more fallback on assignees/start date)
  */
 const detectStatusInfo = (t) => {
-  const s = (v) => (v === undefined || v === null ? "" : String(v).toLowerCase().trim());
+  const s = (v) =>
+    v === undefined || v === null ? "" : String(v).toLowerCase().trim();
   const idOf = (a) => {
     if (!a) return "";
     if (typeof a === "object") return a._id ?? a.id ?? "";
@@ -29,10 +30,26 @@ const detectStatusInfo = (t) => {
       status: t.status,
       state: t.state,
       stage: t.stage,
-      statusCode: t.statusCode ?? t.status_id ?? t.code ?? t.status_code,
-      progress: t.progress ?? t.percent ?? t.completionPercent ?? t.progressPercent ?? t.percentage,
-      completedFlag: t.completed ?? t.isCompleted ?? t.isDone ?? t.done ?? t.is_complete,
-      completedAt: t.completedAt ?? t.closedAt ?? t.finishedAt ?? t.completed_at ?? t.closed_at,
+      statusCode:
+        t.statusCode ?? t.status_id ?? t.code ?? t.status_code,
+      progress:
+        t.progress ??
+        t.percent ??
+        t.completionPercent ??
+        t.progressPercent ??
+        t.percentage,
+      completedFlag:
+        t.completed ??
+        t.isCompleted ??
+        t.isDone ??
+        t.done ??
+        t.is_complete,
+      completedAt:
+        t.completedAt ??
+        t.closedAt ??
+        t.finishedAt ??
+        t.completed_at ??
+        t.closed_at,
     },
     checklistSummary: null,
     resolvedBucket: "To Do",
@@ -44,32 +61,85 @@ const detectStatusInfo = (t) => {
     if (typeof it === "boolean") return it;
     if (typeof it === "string") {
       const vs = s(it);
-      return ["true", "done", "checked", "complete", "completed", "1"].includes(vs);
+      return [
+        "true",
+        "done",
+        "checked",
+        "complete",
+        "completed",
+        "1",
+      ].includes(vs);
     }
     if (typeof it === "object") {
-      if (it.completed || it.done || it.checked || it.isChecked || it.isCompleted || it.isComplete) return true;
-      if (it.status && typeof it.status === "string" && s(it.status).includes("done")) return true;
-      if (it.state && typeof it.state === "string" && s(it.state).includes("done")) return true;
-      if (it.checkedAt || it.completedAt || it.finishedAt || it.checked_at || it.completed_at) return true;
-      if (typeof it.status === "number" && (it.status === 1 || it.status === 2)) return true;
+      if (
+        it.completed ||
+        it.done ||
+        it.checked ||
+        it.isChecked ||
+        it.isCompleted ||
+        it.isComplete
+      )
+        return true;
+      if (
+        it.status &&
+        typeof it.status === "string" &&
+        s(it.status).includes("done")
+      )
+        return true;
+      if (
+        it.state &&
+        typeof it.state === "string" &&
+        s(it.state).includes("done")
+      )
+        return true;
+      if (
+        it.checkedAt ||
+        it.completedAt ||
+        it.finishedAt ||
+        it.checked_at ||
+        it.completed_at
+      )
+        return true;
+      if (
+        typeof it.status === "number" &&
+        (it.status === 1 || it.status === 2)
+      )
+        return true;
     }
     return false;
   };
 
   // 1) Hard "Done" checks
-  if (t.completed === true || t.isCompleted === true || t.isDone === true || t.done === true || t.is_complete === true) {
+  if (
+    t.completed === true ||
+    t.isCompleted === true ||
+    t.isDone === true ||
+    t.done === true ||
+    t.is_complete === true
+  ) {
     info.resolvedBucket = "Done";
     info.reasons.push("explicit boolean completed flag");
     return info;
   }
-  if (t.completedAt || t.closedAt || t.finishedAt || t.completed_at || t.closed_at) {
+  if (
+    t.completedAt ||
+    t.closedAt ||
+    t.finishedAt ||
+    t.completed_at ||
+    t.closed_at
+  ) {
     info.resolvedBucket = "Done";
     info.reasons.push("completedAt/closedAt/finishedAt present");
     return info;
   }
 
   // 2) Numeric progress
-  const prog = t.progress ?? t.percent ?? t.completionPercent ?? t.progressPercent ?? t.percentage;
+  const prog =
+    t.progress ??
+    t.percent ??
+    t.completionPercent ??
+    t.progressPercent ??
+    t.percentage;
   if (typeof prog === "number") {
     if (prog >= 100) {
       info.resolvedBucket = "Done";
@@ -97,25 +167,48 @@ const detectStatusInfo = (t) => {
 
   // 3) Status words/labels
   const candidates = [];
-  ["status", "state", "stage", "workflowState", "taskStatus", "statusText", "label"].forEach((k) => {
-    if (typeof t[k] !== "undefined") candidates.push(t[k]);
-  });
-  if (t.status && typeof t.status === "object") candidates.push(t.status.name ?? t.status.label ?? t.status.value ?? t.status);
-  if (t.state && typeof t.state === "object") candidates.push(t.state.name ?? t.state.label ?? t.state.value ?? t.state);
+  ["status", "state", "stage", "workflowState", "taskStatus", "statusText", "label"].forEach(
+    (k) => {
+      if (typeof t[k] !== "undefined") candidates.push(t[k]);
+    }
+  );
+  if (t.status && typeof t.status === "object")
+    candidates.push(
+      t.status.name ??
+        t.status.label ??
+        t.status.value ??
+        t.status
+    );
+  if (t.state && typeof t.state === "object")
+    candidates.push(
+      t.state.name ?? t.state.label ?? t.state.value ?? t.state
+    );
   for (const c of candidates) {
     const v = s(c);
     if (!v) continue;
-    if (["done", "completed", "complete", "closed", "finished"].some((k) => v.includes(k))) {
+    if (
+      ["done", "completed", "complete", "closed", "finished"].some(
+        (k) => v.includes(k)
+      )
+    ) {
       info.resolvedBucket = "Done";
       info.reasons.push(`string match done on "${v}"`);
       return info;
     }
-    if (["inprogress", "in-progress", "progress", "doing", "ongoing", "started", "active"].some((k) => v.includes(k))) {
+    if (
+      ["inprogress", "in-progress", "progress", "doing", "ongoing", "started", "active"].some(
+        (k) => v.includes(k)
+      )
+    ) {
       info.resolvedBucket = "In Progress";
       info.reasons.push(`string match inprogress on "${v}"`);
       return info;
     }
-    if (["todo", "to do", "backlog", "open", "new", "pending"].some((k) => v.includes(k))) {
+    if (
+      ["todo", "to do", "backlog", "open", "new", "pending"].some(
+        (k) => v.includes(k)
+      )
+    ) {
       info.resolvedBucket = "To Do";
       info.reasons.push(`string match todo on "${v}"`);
       return info;
@@ -123,7 +216,14 @@ const detectStatusInfo = (t) => {
   }
 
   // 4) Numeric codes
-  const numericFields = [t.statusCode, t.status_id, t.stateCode, t.code, t.status, t.status_code];
+  const numericFields = [
+    t.statusCode,
+    t.status_id,
+    t.stateCode,
+    t.code,
+    t.status,
+    t.status_code,
+  ];
   for (const n of numericFields) {
     if (n === undefined || n === null) continue;
     const num = Number(n);
@@ -151,14 +251,22 @@ const detectStatusInfo = (t) => {
   }
 
   // 5) Checklist heuristic
-  const checklist =
-    Array.isArray(t.todoChecklist) ? t.todoChecklist :
-    Array.isArray(t.checklist) ? t.checklist :
-    Array.isArray(t.todos) ? t.todos : [];
+  const checklist = Array.isArray(t.todoChecklist)
+    ? t.todoChecklist
+    : Array.isArray(t.checklist)
+    ? t.checklist
+    : Array.isArray(t.todos)
+    ? t.todos
+    : [];
   if (checklist.length > 0) {
     let completed = 0;
-    checklist.forEach((it) => { if (isItemChecked(it)) completed += 1; });
-    info.checklistSummary = { total: checklist.length, completed };
+    checklist.forEach((it) => {
+      if (isItemChecked(it)) completed += 1;
+    });
+    info.checklistSummary = {
+      total: checklist.length,
+      completed,
+    };
     if (completed > 0 && completed >= checklist.length) {
       info.resolvedBucket = "Done";
       info.reasons.push("all checklist items marked done");
@@ -171,13 +279,6 @@ const detectStatusInfo = (t) => {
     }
   }
 
-  // ❌ (REMOVED) previous fallback that forced In Progress if assignees or start timestamp existed
-  // if ((t.assignees?.length || t.assignedTo?.length || t.startedAt || t.startAt || t.started_at)) {
-  //   info.resolvedBucket = "In Progress";
-  //   info.reasons.push("assignee/start timestamp present -> inprogress fallback");
-  //   return info;
-  // }
-
   // Default -> To Do
   info.reasons.push("no explicit signals -> default To Do");
   return info;
@@ -186,14 +287,16 @@ const detectStatusInfo = (t) => {
 export default function ProjectDetails() {
   const params = useParams();
   const workspaceId = params.workspaceId ?? params.id ?? params.wsId ?? null;
-  const projectId   = params.projectId   ?? params.id ?? params.pid  ?? null;
+  const projectId = params.projectId ?? params.id ?? params.pid ?? null;
   const navigate = useNavigate();
   const location = useLocation();
 
+  const { user } = useContext(UserContext);
+
   const [project, setProject] = useState(null);
-  const [tasks, setTasks]     = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
+  const [error, setError] = useState(null);
 
   const buildPath = (templateOrFn, ...args) => {
     if (!templateOrFn) return null;
@@ -212,13 +315,20 @@ export default function ProjectDetails() {
     const attempts = [];
 
     if (API_PATHS?.PROJECTS?.GET_BY_WORKSPACE_PROJECT) {
-      attempts.push(buildPath(API_PATHS.PROJECTS.GET_BY_WORKSPACE_PROJECT, workspaceId, projectId));
+      attempts.push(
+        buildPath(
+          API_PATHS.PROJECTS.GET_BY_WORKSPACE_PROJECT,
+          workspaceId,
+          projectId
+        )
+      );
     }
     if (API_PATHS?.PROJECTS?.GET_BY_ID) {
       attempts.push(buildPath(API_PATHS.PROJECTS.GET_BY_ID, projectId));
     }
 
-    if (workspaceId) attempts.push(`/api/workspaces/${workspaceId}/projects/${projectId}`);
+    if (workspaceId)
+      attempts.push(`/api/workspaces/${workspaceId}/projects/${projectId}`);
     attempts.push(`/api/projects/${projectId}`);
 
     for (const path of attempts) {
@@ -248,11 +358,12 @@ export default function ProjectDetails() {
     }
 
     const endpoints = [
-      (API_PATHS?.TASKS?.GET_BY_PROJECT && buildPath(API_PATHS.TASKS.GET_BY_PROJECT, projectId)),
+      API_PATHS?.TASKS?.GET_BY_PROJECT &&
+        buildPath(API_PATHS.TASKS.GET_BY_PROJECT, projectId),
       `/api/tasks?project=${projectId}`,
       `/api/projects/${projectId}/tasks`,
       `/api/tasks?projectId=${projectId}`,
-      `/api/tasks`
+      `/api/tasks`,
     ].filter(Boolean);
 
     const sameId = (a, b) => String(a ?? "") === String(b ?? "");
@@ -278,7 +389,9 @@ export default function ProjectDetails() {
         }
         if (!Array.isArray(list)) continue;
 
-        const filtered = list.filter((t) => sameId(extractProjectId(t), projectId));
+        const filtered = list.filter((t) =>
+          sameId(extractProjectId(t), projectId)
+        );
 
         const normalized = filtered.map((t) => {
           const todoChecklist = Array.isArray(t.todoChecklist)
@@ -306,9 +419,17 @@ export default function ProjectDetails() {
           };
         });
 
-        console.groupCollapsed(`[ProjectDetails] Tasks (${normalized.length}) from ${url}`);
+        console.groupCollapsed(
+          `[ProjectDetails] Tasks (${normalized.length}) from ${url}`
+        );
         normalized.slice(0, 20).forEach((nt) => {
-          console.log("task id:", nt._id ?? nt.id, "-> bucket:", nt._statusBucket, nt._statusInfo);
+          console.log(
+            "task id:",
+            nt._id ?? nt.id,
+            "-> bucket:",
+            nt._statusBucket,
+            nt._statusInfo
+          );
         });
         console.groupEnd();
 
@@ -332,18 +453,26 @@ export default function ProjectDetails() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, projectId, location.search]);
 
+  // ⭐ Decide base path for task create/edit based on role
+  const taskBasePath =
+    String(user?.role || "").toLowerCase() === "admin"
+      ? "/admin/create-task"
+      : "/user/create-task";
+
   const handleAddTask = (e) => {
     e?.stopPropagation?.();
     const ws = workspaceId ?? "";
     const pid = projectId ?? "";
-    navigate(`/admin/create-task?workspace=${ws}&project=${pid}`);
+    navigate(`${taskBasePath}?workspace=${ws}&project=${pid}`);
   };
 
   const onUpdateTask = (task) => {
     const tid = task._id ?? task.id;
     const ws = workspaceId ?? "";
     const pid = projectId ?? "";
-    navigate(`/admin/create-task?workspace=${ws}&project=${pid}&task=${tid}`);
+    navigate(
+      `${taskBasePath}?workspace=${ws}&project=${pid}&task=${tid}`
+    );
   };
 
   if (loading) return <div className="p-6">Loading project…</div>;
@@ -351,35 +480,57 @@ export default function ProjectDetails() {
   if (!project) return <div className="p-6">Project not found</div>;
 
   // Group tasks
-  const grouped = { "To Do": [], "In Progress": [], "Done": [] };
+  const grouped = { "To Do": [], "In Progress": [], Done: [] };
   tasks.forEach((t) => {
-    const b = t._statusBucket ?? (detectStatusInfo(t).resolvedBucket || "To Do");
+    const b =
+      t._statusBucket ??
+      detectStatusInfo(t).resolvedBucket ??
+      "To Do";
     grouped[b] = grouped[b] || [];
     grouped[b].push(t);
   });
 
   const total = tasks.length;
   const doneCount = grouped["Done"].length;
-  const progressPercent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+  const progressPercent =
+    total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
   return (
     <div className="p-6">
       {/* header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <Link to={-1} className="inline-flex items-center text-sm text-gray-600 mb-2">← Back</Link>
+          <Link
+            to={-1}
+            className="inline-flex items-center text-sm text-gray-600 mb-2"
+          >
+            ← Back
+          </Link>
           <div className="flex items-center gap-4">
             <div
               className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-lg"
               style={{ backgroundColor: project.color ?? "#F97316" }}
             >
-              {project.title ? String(project.title).charAt(0).toUpperCase() : "P"}
+              {project.title
+                ? String(project.title).charAt(0).toUpperCase()
+                : "P"}
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-sky-700">{project.title ?? project.name}</h1>
-              {project.description && <p className="text-gray-600 mt-1">{project.description}</p>}
+              <h1 className="text-2xl font-bold text-sky-700">
+                {project.title ?? project.name}
+              </h1>
+              {project.description && (
+                <p className="text-gray-600 mt-1">
+                  {project.description}
+                </p>
+              )}
               <div className="mt-3 text-sm text-gray-600 flex items-center gap-4">
-                <div>Members: {Array.isArray(project.members) ? project.members.length : (project.membersCount ?? 0)}</div>
+                <div>
+                  Members:{" "}
+                  {Array.isArray(project.members)
+                    ? project.members.length
+                    : project.membersCount ?? 0}
+                </div>
                 <div>Tasks: {total}</div>
               </div>
             </div>
@@ -388,17 +539,26 @@ export default function ProjectDetails() {
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
-            <div className="text-sm text-gray-500 mr-2">Progress:</div>
-            <div className="w-48 h-2 bg-gray-100 rounded overflow-hidden">
-              <div className="h-2 bg-sky-500" style={{ width: `${progressPercent}%` }} />
+            <div className="text-sm text-gray-500 mr-2">
+              Progress:
             </div>
-            <div className="text-sm text-gray-600 ml-2">{progressPercent}%</div>
+            <div className="w-48 h-2 bg-gray-100 rounded overflow-hidden">
+              <div
+                className="h-2 bg-sky-500"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <div className="text-sm text-gray-600 ml-2">
+              {progressPercent}%
+            </div>
           </div>
 
-          <button onClick={handleAddTask} className="px-4 py-2 bg-sky-600 text-white rounded shadow hover:bg-sky-700">
+          <button
+            onClick={handleAddTask}
+            className="px-4 py-2 bg-sky-600 text-white rounded shadow hover:bg-sky-700"
+          >
             Add Task
           </button>
-          {/* settings button removed */}
         </div>
       </div>
 
@@ -410,18 +570,29 @@ export default function ProjectDetails() {
       {/* kanban */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {["To Do", "In Progress", "Done"].map((col) => (
-          <div key={col} className="min-h-[220px] bg-gray-50 rounded-lg p-4 border border-dashed border-gray-200">
+          <div
+            key={col}
+            className="min-h-[220px] bg-gray-50 rounded-lg p-4 border border-dashed border-gray-200"
+          >
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold">{col}</h3>
-              <span className="text-sm text-gray-400">{grouped[col].length}</span>
+              <span className="text-sm text-gray-400">
+                {grouped[col].length}
+              </span>
             </div>
 
             <div className="space-y-3">
               {grouped[col].length === 0 ? (
-                <div className="text-sm text-gray-400 py-6 text-center">No tasks</div>
+                <div className="text-sm text-gray-400 py-6 text-center">
+                  No tasks
+                </div>
               ) : (
                 grouped[col].map((t) => (
-                  <TaskCard key={t._id ?? t.id} task={t} onUpdate={() => onUpdateTask(t)} />
+                  <TaskCard
+                    key={t._id ?? t.id}
+                    task={t}
+                    onUpdate={() => onUpdateTask(t)}
+                  />
                 ))
               )}
             </div>
@@ -435,10 +606,18 @@ export default function ProjectDetails() {
 function StatusPills({ grouped, total }) {
   return (
     <>
-      <button className="px-3 py-1 rounded-md text-sm bg-white border text-gray-700">All ({total})</button>
-      <button className="px-3 py-1 rounded-md text-sm bg-white border text-gray-700">To Do ({grouped["To Do"].length})</button>
-      <button className="px-3 py-1 rounded-md text-sm bg-white border text-gray-700">In Progress ({grouped["In Progress"].length})</button>
-      <button className="px-3 py-1 rounded-md text-sm bg-white border text-gray-700">Done ({grouped["Done"].length})</button>
+      <button className="px-3 py-1 rounded-md text-sm bg-white border text-gray-700">
+        All ({total})
+      </button>
+      <button className="px-3 py-1 rounded-md text-sm bg-white border text-gray-700">
+        To Do ({grouped["To Do"].length})
+      </button>
+      <button className="px-3 py-1 rounded-md text-sm bg-white border text-gray-700">
+        In Progress ({grouped["In Progress"].length})
+      </button>
+      <button className="px-3 py-1 rounded-md text-sm bg-white border text-gray-700">
+        Done ({grouped["Done"].length})
+      </button>
     </>
   );
 }

@@ -7,22 +7,61 @@ const bcrypt = require('bcryptjs');
 /**
  * GET /api/users
  * Admin-only: return members and task counts
+ * Supports query params:
+ *  - department (string)
+ *  - ids (comma-separated IDs)
+ *  - search (name or email, fuzzy)
  */
 const getUsers = async (req, res) => {
   try {
-    // get only members (no passwords)
-    const users = await User.find({ role: 'member' }).select('-password');
+    const { department, ids, search } = req.query;
+
+    // base filter: only members (same as before)
+    const filter = { role: 'member' };
+
+    // filter by ids (if provided)
+    if (ids) {
+      const arr = String(ids)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (arr.length) filter._id = { $in: arr };
+    }
+
+    // filter by department (if provided)
+    if (department) {
+      filter.department = department;
+    }
+
+    // search by name or email
+    if (search) {
+      const re = new RegExp(String(search).trim(), 'i');
+      filter.$or = [{ name: re }, { email: re }];
+    }
+
+    // fetch users
+    const users = await User.find(filter).select('-password').lean();
     console.log('getUsers -> matched users:', users.length);
 
-    // Add task counts for each user
+    // Add task counts for each user (parallel)
     const usersWithTaskCount = await Promise.all(
       users.map(async (user) => {
-        const pendingTask = await Task.countDocuments({ assignedTo: user._id, status: 'pending' });
-        const inProgressTask = await Task.countDocuments({ assignedTo: user._id, status: 'in-progress' });
-        const completedTask = await Task.countDocuments({ assignedTo: user._id, status: 'completed' });
+        const uid = user._id;
+
+        // Count documents where user is assigned.
+        // Support both possible field names used in tasks ('assignedTo' or 'assignees').
+        const pendingTask = await Task.countDocuments({
+          $and: [{ status: 'pending' }, { $or: [{ assignedTo: uid }, { assignees: uid }] }],
+        });
+        const inProgressTask = await Task.countDocuments({
+          $and: [{ status: 'in-progress' }, { $or: [{ assignedTo: uid }, { assignees: uid }] }],
+        });
+        const completedTask = await Task.countDocuments({
+          $and: [{ status: 'completed' }, { $or: [{ assignedTo: uid }, { assignees: uid }] }],
+        });
 
         return {
-          ...user._doc,
+          ...user,
           pendingTask,
           inProgressTask,
           completedTask,
@@ -30,10 +69,11 @@ const getUsers = async (req, res) => {
       })
     );
 
-    res.json(usersWithTaskCount);
+    // return consistent object shape
+    return res.json({ users: usersWithTaskCount });
   } catch (error) {
     console.error('getUsers error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
@@ -43,13 +83,13 @@ const getUsers = async (req, res) => {
  */
 const getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    const user = await User.findById(req.params.id).select('-password').lean();
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    res.json(user);
+    return res.json({ user });
   } catch (error) {
     console.error('getUserById error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
@@ -91,7 +131,9 @@ const setCurrentWorkspace = async (req, res) => {
       userId,
       { currentWorkspace: workspaceId },
       { new: true }
-    ).select('-password').populate('currentWorkspace');
+    )
+      .select('-password')
+      .populate('currentWorkspace');
 
     return res.json({
       message: 'Current workspace updated',

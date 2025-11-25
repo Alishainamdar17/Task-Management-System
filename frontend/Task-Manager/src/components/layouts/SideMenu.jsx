@@ -10,15 +10,12 @@ const contains = (txt, sub) =>
     ? txt.toLowerCase().includes(sub.toLowerCase())
     : false;
 
-const containsWorkspace = (value) => contains(value, "workspace");
-
-// ✅ Detect ANY create-task item by id/path/label (handles variations)
+// Detect menu items related to "Create Task"
 const isCreateTaskItem = (item) => {
   const id = item?.id || "";
   const path = item?.path || "";
   const label = item?.label || "";
 
-  // common patterns
   if (id === "createTask") return true;
   if (contains(path, "/create-task")) return true;
   if (contains(label, "create") && contains(label, "task")) return true;
@@ -36,12 +33,14 @@ const SideMenu = ({ activeMenu }) => {
 
   const handleClick = (route) => {
     if (!route) return;
+
     if (route === "logout") {
       localStorage.clear();
       clearUser();
       navigate("/login");
       return;
     }
+
     navigate(route);
   };
 
@@ -55,52 +54,31 @@ const SideMenu = ({ activeMenu }) => {
     const role = String(user.role || "").toLowerCase();
     const isAdmin = role === "admin";
 
-    // base menu from constants
+    // GET BASE MENU
     const baseMenu = isAdmin ? SIDE_MENU_DATA : SIDE_MENU_USER_DATA;
 
-    // 🔒 Remove "Create Task" item always
-    // 🔒 Non-admins: also hide any explicit workspace menu
+    // ⭐ ALLOW Create Task for USERS also — no more hiding it
     const filteredMenu = Array.isArray(baseMenu)
-      ? baseMenu.filter((item) => {
-          if (!item) return false;
-          if (isCreateTaskItem(item)) return false; // remove Create Task universally
-          if (!isAdmin) {
-            if (
-              containsWorkspace(item.id) ||
-              containsWorkspace(item.path) ||
-              containsWorkspace(item.label)
-            ) {
-              return false;
-            }
-          }
-          return true;
-        })
+      ? baseMenu.filter((item) => item) // only remove invalid items
       : [];
 
     setSideMenuData(filteredMenu);
 
-    // Admins: load workspaces list
-    if (!isAdmin) {
-      setWorkspaces([]);
-      return;
-    }
-
+    // ⭐ LOAD WORKSPACES FOR BOTH ADMIN & USER
     const fetchWs = async () => {
       try {
         setWorkspacesLoading(true);
-        const path =
-          API_PATHS?.WORKSPACES &&
-          (typeof API_PATHS.WORKSPACES.GET_ALL === "function"
-            ? API_PATHS.WORKSPACES.GET_ALL()
-            : API_PATHS.WORKSPACES.GET_ALL);
 
-        if (!path) {
-          setWorkspaces([]);
-          return;
-        }
+        const path =
+          typeof API_PATHS.WORKSPACES.GET_ALL === "function"
+            ? API_PATHS.WORKSPACES.GET_ALL()
+            : API_PATHS.WORKSPACES.GET_ALL;
+
+        if (!path) return;
 
         const res = await axiosInstance.get(path);
         const payload = res?.data ?? {};
+
         const arr = Array.isArray(payload)
           ? payload
           : Array.isArray(payload.workspaces)
@@ -108,6 +86,7 @@ const SideMenu = ({ activeMenu }) => {
           : Array.isArray(payload.data)
           ? payload.data
           : [];
+
         setWorkspaces(arr);
       } catch (err) {
         console.error("Failed to fetch workspaces", err);
@@ -120,14 +99,16 @@ const SideMenu = ({ activeMenu }) => {
     fetchWs();
   }, [user]);
 
+  // ⭐ Admin = /admin/workspaces , User = /workspaces
   const workspaceBasePath =
-    user && String(user.role || "").toLowerCase() === "admin"
+    String(user?.role).toLowerCase() === "admin"
       ? "/admin/workspaces"
       : "/workspaces";
 
   return (
     <div className="w-64 h-[calc(100vh-61px)] bg-white border-r border-gray-200 sticky top-[61px] z-20 overflow-auto">
-      <div className="flex flex-col items-center mb-7 pt-5 ">
+      {/* USER PROFILE */}
+      <div className="flex flex-col items-center mb-7 pt-5">
         <div className="w-20 h-20 rounded-full overflow-hidden border mb-2">
           <img
             src={user?.profileImageUrl || ""}
@@ -137,7 +118,7 @@ const SideMenu = ({ activeMenu }) => {
           />
         </div>
 
-        {String(user?.role || "").toLowerCase() === "admin" && (
+        {String(user?.role) === "admin" && (
           <div className="text-[10px] font-medium text-white bg-primary px-3 py-0.5 rounded mt-1">
             Admin
           </div>
@@ -149,12 +130,14 @@ const SideMenu = ({ activeMenu }) => {
         <p className="text-sm text-gray-500">{user?.email || ""}</p>
       </div>
 
+      {/* MENU ITEMS */}
       <nav>
         {sideMenuData.length > 0 ? (
           sideMenuData.map((item) => {
             const Icon = item.icon;
             const isActive = activeMenu === item.path || activeMenu === item.id;
             const path = item.path || item.id || null;
+
             return (
               <button
                 key={item.id || item.label}
@@ -164,11 +147,8 @@ const SideMenu = ({ activeMenu }) => {
                     : "text-gray-700 hover:bg-gray-100"
                 }`}
                 onClick={() => handleClick(path)}
-                type="button"
               >
-                {Icon && typeof Icon === "function" ? (
-                  <Icon className="text-lg" />
-                ) : null}
+                {Icon && <Icon className="text-lg" />}
                 <span>{item.label}</span>
               </button>
             );
@@ -177,14 +157,20 @@ const SideMenu = ({ activeMenu }) => {
           <div className="px-6 text-sm text-gray-400">No menu items</div>
         )}
 
-        {/* Workspaces list (admin only) */}
-        {workspaces && workspaces.length > 0 && (
+        {/* ⭐ WORKSPACE LIST (Admin + User both) */}
+        {workspaces.length > 0 && (
           <div className="mt-4 px-6">
-            <h6 className="text-xs text-gray-400 uppercase mb-2">Workspaces</h6>
+            <h6 className="text-xs text-gray-400 uppercase mb-2">
+              Workspaces
+            </h6>
+
             {workspaces.map((ws) => {
-              const id = ws._id ?? ws.id;
+              const id = ws._id;
+
               const isActive =
-                activeMenu === `${workspaceBasePath}/${id}` || activeMenu === id;
+                activeMenu === `${workspaceBasePath}/${id}` ||
+                activeMenu === id;
+
               return (
                 <button
                   key={id}
@@ -194,7 +180,6 @@ const SideMenu = ({ activeMenu }) => {
                       : "text-gray-600 hover:bg-gray-100"
                   }`}
                   onClick={() => handleClick(`${workspaceBasePath}/${id}`)}
-                  type="button"
                 >
                   {ws.name}
                 </button>
@@ -203,8 +188,11 @@ const SideMenu = ({ activeMenu }) => {
           </div>
         )}
 
-        {String(user?.role || "").toLowerCase() === "admin" && workspacesLoading && (
-          <div className="px-6 text-sm text-gray-400 mt-2">Loading workspaces...</div>
+        {/* Loading workspaces */}
+        {workspacesLoading && (
+          <div className="px-6 text-sm text-gray-400 mt-2">
+            Loading workspaces...
+          </div>
         )}
       </nav>
     </div>

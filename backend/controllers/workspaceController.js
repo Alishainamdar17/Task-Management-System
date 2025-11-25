@@ -1,136 +1,160 @@
-const mongoose = require('mongoose');
-const Workspace = require('../models/Workspace');
-const User = require('../models/User'); 
+const mongoose = require("mongoose");
+const Workspace = require("../models/Workspace");
+const User = require("../models/User");
 
-// Helper: check if a user is workspace owner
+/* ---------------------------------------------
+   HELPERS
+------------------------------------------------*/
+
 const isOwner = (workspace, userId) => {
   if (!workspace || !workspace.owner) return false;
   return String(workspace.owner) === String(userId);
 };
 
-// Helper: get member object if present
 const getMemberObj = (workspace, userId) => {
   if (!Array.isArray(workspace.members)) return null;
-  return workspace.members.find(m => String(m.user) === String(userId));
+  return workspace.members.find((m) => String(m.user) === String(userId));
 };
 
-// Helper: check if user is workspace admin (owner OR member.role === 'admin')
 const isWorkspaceAdmin = (workspace, userId) => {
   if (!workspace) return false;
   if (isOwner(workspace, userId)) return true;
   const member = getMemberObj(workspace, userId);
-  return !!member && member.role === 'admin';
+  return !!member && member.role === "admin";
 };
 
-// ----------------------
-// POST /api/workspaces
-// ----------------------
+/* ---------------------------------------------
+   CREATE WORKSPACE (owner = logged in user)
+------------------------------------------------*/
 const createWorkspace = async (req, res) => {
   try {
-    const { name, description = '', members = [], projects = [], settings = {} } = req.body;
-    if (!name) return res.status(400).json({ message: 'Workspace name is required' });
+    const { name, description = "", members = [], projects = [], settings = {} } = req.body;
 
-    // sanitize members input: accept array of { user, role } or array of userIds
-    const normalizedMembers = Array.isArray(members) ? members.map(m => {
-      if (typeof m === 'string' || mongoose.Types.ObjectId.isValid(m)) return { user: m, role: 'member' };
-      if (m && m.user) return { user: m.user, role: m.role || 'member' };
-      return null;
-    }).filter(Boolean) : [];
+    if (!name) return res.status(400).json({ message: "Workspace name is required" });
 
-    const workspaceData = {
+    // normalize incoming members
+    const normalizedMembers = Array.isArray(members)
+      ? members
+          .map((m) => {
+            if (typeof m === "string" || mongoose.Types.ObjectId.isValid(m))
+              return { user: m, role: "member" };
+            if (m && m.user) return { user: m.user, role: m.role || "member" };
+            return null;
+          })
+          .filter(Boolean)
+      : [];
+
+    const ws = await Workspace.create({
       name,
       description,
-      owner: req.user ? req.user._id : null,
+      owner: req.user._id,
       members: normalizedMembers,
       projects: Array.isArray(projects) ? projects : [],
-      settings: settings || {},
-    };
+      settings,
+    });
 
-    const ws = await Workspace.create(workspaceData);
-    const populated = await Workspace.findById(ws._id).populate('owner', 'name email').populate('members.user', 'name email');
-    return res.status(201).json({ message: 'Workspace created', workspace: populated });
+    const populated = await Workspace.findById(ws._id)
+      .populate("owner", "name email")
+      .populate("members.user", "name email");
+
+    return res.status(201).json({ message: "Workspace created", workspace: populated });
   } catch (err) {
-    console.error('createWorkspace error:', err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("createWorkspace error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
-// ----------------------
-// GET /api/workspaces
-// Admins: return all; otherwise return all workspaces where user is owner or member
-// ----------------------
+/* ---------------------------------------------
+   GET ALL WORKSPACES
+------------------------------------------------*/
 const getWorkspaces = async (req, res) => {
   try {
-    // if user is admin role on req.user (your auth) — return all
-    if (req.user && req.user.role === 'admin') {
-      const all = await Workspace.find().populate('owner', 'name email').populate('members.user', 'name email');
+    // admin → all workspaces
+    if (req.user.role === "admin") {
+      const all = await Workspace.find()
+        .populate("owner", "name email")
+        .populate("members.user", "name email");
       return res.json({ workspaces: all });
     }
 
-    // else, find workspaces where owner === user OR members.user includes user
-    const userId = req.user._id;
-    const workspaces = await Workspace.find({
-      $or: [{ owner: userId }, { 'members.user': userId }]
-    }).populate('owner', 'name email').populate('members.user', 'name email');
+    // user → only workspaces they belong to
+    const ws = await Workspace.find({
+      $or: [{ owner: req.user._id }, { "members.user": req.user._id }],
+    })
+      .populate("owner", "name email")
+      .populate("members.user", "name email");
 
-    return res.json({ workspaces });
+    return res.json({ workspaces: ws });
   } catch (err) {
-    console.error('getWorkspaces error:', err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("getWorkspaces error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
-// ----------------------
-// GET /api/workspaces/me
-// Workspaces where current user is owner or member
-// ----------------------
+/* ---------------------------------------------
+   GET MY WORKSPACES
+------------------------------------------------*/
 const getMyWorkspaces = async (req, res) => {
   try {
     const userId = req.user._id;
+
     const workspaces = await Workspace.find({
-      $or: [{ owner: userId }, { 'members.user': userId }]
-    }).populate('owner', 'name email').populate('members.user', 'name email');
+      $or: [{ owner: userId }, { "members.user": userId }],
+    })
+      .populate("owner", "name email")
+      .populate("members.user", "name email");
+
     return res.json({ workspaces });
   } catch (err) {
-    console.error('getMyWorkspaces error:', err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("getMyWorkspaces error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
-// ----------------------
-// GET /api/workspaces/:id
-// ----------------------
+/* ---------------------------------------------
+   GET WORKSPACE BY ID  (⭐ FIXED HERE)
+   USER gets auto-added if not a member
+------------------------------------------------*/
 const getWorkspaceById = async (req, res) => {
   try {
     const ws = await Workspace.findById(req.params.id)
-      .populate('owner', 'name email')
-      .populate('members.user', 'name email')
-      .populate('projects'); // you can select fields from project if needed
+      .populate("owner", "name email")
+      .populate("members.user", "name email")
+      .populate("projects");
 
-    if (!ws) return res.status(404).json({ message: 'Workspace not found' });
+    if (!ws) return res.status(404).json({ message: "Workspace not found" });
 
-    // authorization: allow if owner, member, or admin user
-    const allowed = isOwner(ws, req.user._id) || getMemberObj(ws, req.user._id) || (req.user && req.user.role === 'admin');
-    if (!allowed) return res.status(403).json({ message: 'You are not a member of this workspace' });
+    const userId = req.user._id;
+
+    // ⭐ If user is not admin AND not member AND not owner → auto add user to workspace
+    const isMember = getMemberObj(ws, userId);
+    const isOwnerFlag = isOwner(ws, userId);
+
+    if (!isMember && !isOwnerFlag && req.user.role !== "admin") {
+      ws.members.push({ user: userId, role: "member" });
+      await ws.save();
+    }
 
     return res.json({ workspace: ws });
   } catch (err) {
-    console.error('getWorkspaceById error:', err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("getWorkspaceById error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
-// ----------------------
-// PUT /api/workspaces/:id
-// Only owner or workspace admin can update workspace details
-// ----------------------
+/* ---------------------------------------------
+   UPDATE WORKSPACE
+------------------------------------------------*/
 const updateWorkspace = async (req, res) => {
   try {
     const ws = await Workspace.findById(req.params.id);
-    if (!ws) return res.status(404).json({ message: 'Workspace not found' });
 
-    if (!isWorkspaceAdmin(ws, req.user._id) && !(req.user && req.user.role === 'admin')) {
-      return res.status(403).json({ message: 'Only workspace owner or admin can update the workspace' });
+    if (!ws) return res.status(404).json({ message: "Workspace not found" });
+
+    if (!isWorkspaceAdmin(ws, req.user._id) && req.user.role !== "admin") {
+      return res
+        .status(403)
+        .json({ message: "Only workspace admin/owner can update the workspace" });
     }
 
     const { name, description, settings, projects } = req.body;
@@ -138,143 +162,127 @@ const updateWorkspace = async (req, res) => {
     if (name !== undefined) ws.name = name;
     if (description !== undefined) ws.description = description;
     if (settings !== undefined) ws.settings = settings;
-    if (projects !== undefined) ws.projects = Array.isArray(projects) ? projects : ws.projects;
+    if (projects !== undefined) ws.projects = projects;
 
     await ws.save();
-    const populated = await Workspace.findById(ws._id).populate('owner', 'name email').populate('members.user', 'name email');
-    return res.json({ message: 'Workspace updated', workspace: populated });
+
+    const populated = await Workspace.findById(ws._id)
+      .populate("owner", "name email")
+      .populate("members.user", "name email");
+
+    return res.json({ message: "Workspace updated", workspace: populated });
   } catch (err) {
-    console.error('updateWorkspace error:', err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("updateWorkspace error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
-// ----------------------
-// DELETE /api/workspaces/:id
-// Only owner or global admin can delete. (Optional: allow workspace admin to delete — currently owner or admin)
-// ----------------------
+/* ---------------------------------------------
+   DELETE WORKSPACE
+------------------------------------------------*/
 const deleteWorkspace = async (req, res) => {
   try {
     const ws = await Workspace.findById(req.params.id);
-    if (!ws) return res.status(404).json({ message: 'Workspace not found' });
 
-    // allow owner or global admin to delete
-    if (!isOwner(ws, req.user._id) && !(req.user && req.user.role === 'admin')) {
-      return res.status(403).json({ message: 'Only workspace owner or admin can delete the workspace' });
+    if (!ws) return res.status(404).json({ message: "Workspace not found" });
+
+    if (!isOwner(ws, req.user._id) && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Only workspace owner or global admin can delete" });
     }
 
     await ws.deleteOne();
-    return res.json({ message: 'Workspace deleted' });
+    return res.json({ message: "Workspace deleted" });
   } catch (err) {
-    console.error('deleteWorkspace error:', err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("deleteWorkspace error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
-// ----------------------
-// POST /api/workspaces/:id/members
-// Body: { user: userId, role: 'member'|'admin' }
-// Only workspace admin/owner or global admin can add members
-// ----------------------
+/* ---------------------------------------------
+   ADD MEMBER
+------------------------------------------------*/
 const addMember = async (req, res) => {
   try {
     const ws = await Workspace.findById(req.params.id);
-    if (!ws) return res.status(404).json({ message: 'Workspace not found' });
+    if (!ws) return res.status(404).json({ message: "Workspace not found" });
 
-    if (!isWorkspaceAdmin(ws, req.user._id) && !(req.user && req.user.role === 'admin')) {
-      return res.status(403).json({ message: 'Only workspace owner or admin can add members' });
+    if (!isWorkspaceAdmin(ws, req.user._id) && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Only workspace admin/owner can add members" });
     }
 
-    const { user, role = 'member' } = req.body;
-    if (!user || !mongoose.Types.ObjectId.isValid(user)) return res.status(400).json({ message: 'Valid user id is required' });
-    if (!['member', 'admin'].includes(role)) return res.status(400).json({ message: 'Invalid role' });
+    const { user, role = "member" } = req.body;
 
-    // prevent duplicate
-    const existing = getMemberObj(ws, user);
-    if (existing) return res.status(400).json({ message: 'User is already a member of the workspace' });
+    if (!mongoose.Types.ObjectId.isValid(user))
+      return res.status(400).json({ message: "Invalid user ID" });
 
-    // optionally validate user exists
-    if (User) {
-      const u = await User.findById(user).select('_id name email');
-      if (!u) return res.status(404).json({ message: 'User not found' });
-    }
+    const already = getMemberObj(ws, user);
+    if (already) return res.status(400).json({ message: "User already exists in workspace" });
 
     ws.members.push({ user, role });
     await ws.save();
 
-    const populated = await Workspace.findById(ws._id).populate('owner', 'name email').populate('members.user', 'name email');
-    return res.status(201).json({ message: 'Member added', workspace: populated });
+    const populated = await Workspace.findById(ws._id).populate("members.user", "name email");
+    return res.json({ message: "User added", workspace: populated });
   } catch (err) {
-    console.error('addMember error:', err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("addMember error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
-// ----------------------
-// PUT /api/workspaces/:id/members/:memberUserId
-// Body: { role: 'member'|'admin' }
-// Only workspace owner or admin can change roles
-// ----------------------
+/* ---------------------------------------------
+   UPDATE MEMBER ROLE
+------------------------------------------------*/
 const updateMemberRole = async (req, res) => {
   try {
     const ws = await Workspace.findById(req.params.id);
-    if (!ws) return res.status(404).json({ message: 'Workspace not found' });
+    if (!ws) return res.status(404).json({ message: "Workspace not found" });
 
-    if (!isWorkspaceAdmin(ws, req.user._id) && !(req.user && req.user.role === 'admin')) {
-      return res.status(403).json({ message: 'Only workspace owner or admin can update member roles' });
+    if (!isWorkspaceAdmin(ws, req.user._id) && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Only workspace admin/owner can update roles" });
     }
 
     const memberUserId = req.params.memberUserId;
-    if (!mongoose.Types.ObjectId.isValid(memberUserId)) return res.status(400).json({ message: 'Invalid member user id' });
-
-    // cannot change owner here
-    if (isOwner(ws, memberUserId)) return res.status(400).json({ message: 'Cannot change role of workspace owner' });
 
     const member = getMemberObj(ws, memberUserId);
-    if (!member) return res.status(404).json({ message: 'Member not found' });
+    if (!member) return res.status(404).json({ message: "Member not found" });
 
     const { role } = req.body;
-    if (!role || !['member', 'admin'].includes(role)) return res.status(400).json({ message: 'Invalid role' });
+    if (!["member", "admin"].includes(role))
+      return res.status(400).json({ message: "Invalid role" });
 
     member.role = role;
     await ws.save();
 
-    const populated = await Workspace.findById(ws._id).populate('owner', 'name email').populate('members.user', 'name email');
-    return res.json({ message: 'Member role updated', workspace: populated });
+    const populated = await Workspace.findById(ws._id).populate("members.user", "name email");
+    return res.json({ message: "Role updated", workspace: populated });
   } catch (err) {
-    console.error('updateMemberRole error:', err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("updateMemberRole error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
-// ----------------------
-// DELETE /api/workspaces/:id/members/:memberUserId
-// Only owner or workspace admin can remove members. Owner cannot remove themself (transfer ownership first).
-// ----------------------
+/* ---------------------------------------------
+   REMOVE MEMBER
+------------------------------------------------*/
 const removeMember = async (req, res) => {
   try {
     const ws = await Workspace.findById(req.params.id);
-    if (!ws) return res.status(404).json({ message: 'Workspace not found' });
+    if (!ws) return res.status(404).json({ message: "Workspace not found" });
 
-    if (!isWorkspaceAdmin(ws, req.user._id) && !(req.user && req.user.role === 'admin')) {
-      return res.status(403).json({ message: 'Only workspace owner or admin can remove members' });
+    if (!isWorkspaceAdmin(ws, req.user._id) && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Only admin/owner can remove members" });
     }
 
     const memberUserId = req.params.memberUserId;
-    if (!mongoose.Types.ObjectId.isValid(memberUserId)) return res.status(400).json({ message: 'Invalid member user id' });
 
-    if (isOwner(ws, memberUserId)) return res.status(400).json({ message: 'Cannot remove workspace owner. Transfer ownership first.' });
-
-    const beforeCount = ws.members.length;
-    ws.members = ws.members.filter(m => String(m.user) !== String(memberUserId));
-    if (ws.members.length === beforeCount) return res.status(404).json({ message: 'Member not found' });
-
+    ws.members = ws.members.filter((m) => String(m.user) !== String(memberUserId));
     await ws.save();
-    const populated = await Workspace.findById(ws._id).populate('owner', 'name email').populate('members.user', 'name email');
-    return res.json({ message: 'Member removed', workspace: populated });
+
+    const populated = await Workspace.findById(ws._id).populate("members.user", "name email");
+    return res.json({ message: "Member removed", workspace: populated });
   } catch (err) {
-    console.error('removeMember error:', err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("removeMember error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
@@ -287,5 +295,5 @@ module.exports = {
   addMember,
   updateMemberRole,
   removeMember,
-  getMyWorkspaces
+  getMyWorkspaces,
 };

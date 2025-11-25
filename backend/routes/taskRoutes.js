@@ -18,10 +18,10 @@ const {
   updateDependency,
 } = require('../controllers/taskController');
 
-const { protect, adminOnly } = require('../middlewares/authMiddleware');
+const { protect } = require('../middlewares/authMiddleware');
 
 // Dashboard
-router.get('/dashboard/admin', protect, adminOnly, getDashboardData);
+router.get('/dashboard/admin', protect, getDashboardData);
 router.get('/dashboard/user', protect, getUserDashboardData);
 
 // Project-scoped
