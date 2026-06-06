@@ -1,4 +1,4 @@
-# Task Manager
+# Task Manager 
 
 A full-stack Task Manager application (Node.js + Express backend, React + Vite frontend) for managing workspaces, projects, tasks, users and reports. This README documents how to run both backend and frontend locally and important configuration values.
 
