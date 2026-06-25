@@ -1,9 +1,9 @@
 # 🔧 WhatsApp Messages Fix - Summary
 
-## 🎯 समस्या (Problem)
+## 🎯(Problem)
 Task create करने के बाद WhatsApp पर automatically message नहीं जा रहे हैं।
 
-## ✅ किए गए बदलाव (Changes Made)
+## ✅ (Changes Made)
 
 ### 1. **Better Error Logging** 
 File: `backend/controllers/taskController.js`
@@ -12,12 +12,12 @@ File: `backend/controllers/taskController.js`
 - ✅ अब देख पाओगे कि कौन से assignees को message भेजा जा रहा है
 - ✅ अगर phone number नहीं है तो warning दिखेगी
 
-**पहले:**
+
 ```javascript
 console.error('notifyTaskCreate error:', e.message);
 ```
 
-**अब:**
+## Now
 ```javascript
 console.log(`[notifyTaskCreate] Task created: ${t.title}, Assignees: ${t.assignees?.length || 0}`);
 console.log(`[notifyTaskCreate] Sending WhatsApp to ${u.phone} (${u.name})`);

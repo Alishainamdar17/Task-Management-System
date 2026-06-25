@@ -1,8 +1,8 @@
-# Task Manager
-
+# Task Manager 
+USING WHATSAPP INTEGRATION DONE
 A full-stack Task Manager application (Node.js + Express backend, React + Vite frontend) for managing workspaces, projects, tasks, users and reports. This README documents how to run both backend and frontend locally and important configuration values.
 
-## Repository structure
+## Repository structure 
 
 - backend/ - Express API server (MongoDB, JWT auth, file uploads)
 - frontend/Task-Manager - React + Vite SPA (Tailwind, Recharts)
